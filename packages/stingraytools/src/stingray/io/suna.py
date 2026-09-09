@@ -273,9 +273,17 @@ def find_suna_calibration_file(
         return None
 
     cruise_upper = cruise.upper()
-    for file_path in cal_dir.iterdir():
-        if cruise_upper in file_path.name.upper():
-            return file_path
+    matches = sorted(
+        file_path
+        for file_path in cal_dir.iterdir()
+        if file_path.is_file() and cruise_upper in file_path.name.upper()
+    )
+    if len(matches) > 1:
+        raise ValueError(
+            f"Multiple SUNA calibration files match cruise {cruise}: {matches}"
+        )
+    if matches:
+        return matches[0]
 
     return None
 

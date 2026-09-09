@@ -285,83 +285,44 @@ option list.
 
 ## Batch-process cruises
 
-The following workflow retrieves the NES-LTER cruise table, normalizes its date
-fields, selects cruises beginning on or after a configured cutoff date, and runs
-the sensor merge for each cruise. When an end date is unavailable, it applies a
-configured fallback interval.
+Batch processing is implemented as three independent runnable scripts in the
+repository root under `flows/`. Each script is self-contained and can be
+downloaded or copied by itself; it requires only an installed `stingraytools`
+package and the runtime data workspace. Each script retrieves and filters the
+authoritative NES-LTER cruise table and stops on the first failed cruise so
+partial products are visible.
 
-```python
-import subprocess
-from datetime import timedelta
+```bash
+# Merge sensors for every cruise. Calibration is selected from cruise date,
+# and SUNA calibration files are discovered under suna_calibration/ by cruise ID.
+python flows/sensor_merge_flow.py \
+  --work-dir . \
+  --root sensor_data \
+  --time-bin-seconds 5
 
-import pandas as pd
+# Build frame timestamp lists. The media path must contain {cruise}.
+python flows/media_timestamp_flow.py \
+  --work-dir . \
+  --media-dir-template /path/to/media/{cruise} \
+  --out-dir-template media_list/CAMERA_STREAM_1/{cruise}
 
-
-MIN_START_DATE = "START_DATE"
-FALLBACK_DURATION_DAYS = 7
-CALIBRATION_YEAR = "CALIBRATION_YEAR"
-BIN_WIDTH_SECONDS = "BIN_WIDTH_SECONDS"
-
-# Load the authoritative NES-LTER cruise metadata table.
-cruises = pd.read_csv(
-    "https://nes-lter-api.whoi.edu/api/ctd/cruises/get/all"
-)
-
-# Convert API date strings to timezone-naive timestamps for direct comparison.
-cruises["start_time"] = pd.to_datetime(
-    cruises["start_time"],
-    errors="coerce",
-).dt.tz_localize(None)
-cruises["end_time"] = pd.to_datetime(
-    cruises["end_time"],
-    errors="coerce",
-).dt.tz_localize(None)
-
-# Keep valid cruises in chronological order after the configured cutoff.
-cruises = cruises.dropna(subset=["start_time"]).sort_values("start_time")
-cruises = cruises[cruises["start_time"] >= MIN_START_DATE].copy()
-cruises["name"] = cruises["name"].str.upper()
-
-# Estimate a fallback interval when the API has no recorded cruise end date.
-cruises["end_time"] = cruises["end_time"].fillna(
-    cruises["start_time"] + timedelta(days=FALLBACK_DURATION_DAYS)
-)
-
-# Process each cruise independently so failures identify a specific cruise.
-for cruise in cruises.itertuples():
-    # Format the inclusive processing interval expected by the command-line tool.
-    start = cruise.start_time.strftime("%Y-%m-%d")
-    end = cruise.end_time.strftime("%Y-%m-%d")
-
-    # Each output row represents one configured time bin.
-    command = [
-        "stingray",
-        "sensors",
-        "merge",
-        "--work-dir",
-        ".",
-        "--cruise",
-        cruise.name,
-        "--start",
-        start,
-        "--end",
-        end,
-        "--cal-year",
-        CALIBRATION_YEAR,
-        "--time-bin-seconds",
-        BIN_WIDTH_SECONDS,
-    ]
-
-    # Report the active interval before launching the processing subprocess.
-    print(f"Processing {cruise.name}: {start} through {end}")
-
-    # Stop immediately on failure to avoid silently producing a partial batch.
-    subprocess.run(command, check=True)
+# Attach one or more ordered camera streams to the merged sensor CSVs.
+python flows/add_media_flow.py \
+  --work-dir . \
+  --media-list-dirs \
+    media_list/CAMERA_STREAM_1/{cruise} \
+    media_list/CAMERA_STREAM_2/{cruise} \
+  --out-dir dash_data/data/media_enriched
 ```
 
-`subprocess.run(..., check=True)` exposes the first failed cruise instead of
-continuing with incomplete output. Add `--overwrite-index` to `command` when
-the cached sensor-file indexes must be rebuilt.
+Use `--cruise AR88 AR95 AR99 HRS2601` to restrict a flow to named cruises. Use
+`--fallback-days` when the API does not provide an end date, and use
+`--overwrite-index` or `--overwrite` where supported when rebuilding existing
+products. See `python flows/<flow>.py --help` for the complete options.
+
+After copying a script outside the repository, run it directly from the
+workspace, for example `python sensor_merge_flow.py --help`. Install
+`stingraytools` separately in the active environment.
 
 ## Sensor and Image Modules
 
