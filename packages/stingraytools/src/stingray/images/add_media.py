@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -43,8 +45,9 @@ def add_media_to_merged(
     out_path: str | Path | None = None,
     overwrite: bool = False,
 ) -> Path:
+    started_at = time.monotonic()
     if media_list_dirs is None:
-        media_list_dirs = ["media_list/ISIIS1", "media_list/ISIIS2"]
+        raise ValueError("Provide at least one frame-list CSV or directory.")
 
     merged_csv = Path(merged_csv)
 
@@ -53,36 +56,90 @@ def add_media_to_merged(
     else:
         out_path = Path(out_path)
 
+    logger.info(
+        "Adding media to sensor data | sensor_csv=%s cruise=%s media_sources=%s "
+        "out_path=%s overwrite=%s",
+        merged_csv,
+        cruise,
+        media_list_dirs,
+        out_path,
+        overwrite,
+    )
     sled = pd.read_csv(merged_csv)
+    logger.info("Loaded %s sensor rows with %s columns.", len(sled), len(sled.columns))
+
+    legacy_columns = [
+        column for column in sled.columns
+        if re.fullmatch(r"(?:media_path|id|link)(?:_[1-9][0-9]*)?", column)
+    ]
+    if legacy_columns:
+        sled = sled.drop(columns=legacy_columns)
+
+    for base_column in ("media", "frame"):
+        alias = f"{base_column}_1"
+        if alias not in sled.columns:
+            continue
+        if base_column in sled.columns:
+            base_values = sled[base_column]
+            alias_values = sled[alias]
+            conflict = (
+                base_values.notna()
+                & alias_values.notna()
+                & base_values.ne(alias_values)
+            )
+            if conflict.any():
+                raise ValueError(
+                    f"Conflicting first-stream columns: {base_column} and {alias}."
+                )
+            sled[base_column] = base_values.combine_first(alias_values)
+            sled = sled.drop(columns=[alias])
+        else:
+            sled = sled.rename(columns={alias: base_column})
 
     if "timestamp" not in sled.columns:
         raise ValueError("Merged sensor file must contain 'timestamp' column.")
 
     sled = sled.sort_values("timestamp").copy()
 
-    sensor_times = sled["timestamp"].to_numpy(dtype=np.float64)
+    sensor_times = np.sort(
+        sled["timestamp"].dropna().to_numpy(dtype=np.float64)
+    )
 
     if len(sensor_times) < 2:
         raise ValueError("Merged sensor file must contain at least two timestamps.")
 
-    for media_i, media_source in enumerate(media_list_dirs, start=1):
+    resolved_sources = []
+    for media_source in media_list_dirs:
         media_path = resolve_frame_list_csv(media_source, cruise)
         if media_path is None:
-            logger.warning(
-                "No frame-list CSV found for cruise %s in %s",
-                cruise,
-                media_source,
+            raise FileNotFoundError(
+                f"No frame-list CSV found for cruise {cruise} in {media_source}"
             )
-            continue
+        resolved_sources.append(media_path.resolve())
+
+    logger.info("Resolved media streams: %s", resolved_sources)
+
+    if len(set(resolved_sources)) != len(resolved_sources):
+        raise ValueError("Each media stream must use a different frame-list CSV.")
+
+    for media_i, media_path in enumerate(resolved_sources, start=1):
 
         tag = media_path.parent.name.lower()
 
         logger.info("Processing media: %s | %s", tag, media_path)
 
-        media = pd.read_csv(media_path)
+        media = pd.read_csv(
+            media_path,
+            usecols=lambda column: column in {"times", "media", "frame"},
+        )
+        input_rows = len(media)
 
-        if "times" not in media.columns:
-            raise ValueError(f"Frame-list CSV must contain a 'times' column: {media_path}")
+        required_columns = {"times", "media", "frame"}
+        missing_columns = sorted(required_columns.difference(media.columns))
+        if missing_columns:
+            raise ValueError(
+                f"Frame-list CSV is missing {', '.join(missing_columns)}: {media_path}"
+            )
 
         media["times"] = pd.to_datetime(media["times"], errors="coerce")
 
@@ -92,10 +149,14 @@ def add_media_to_merged(
             .sort_values("times")
             .copy()
         )
+        logger.info(
+            "%s frame rows loaded; %s have valid timestamps.",
+            input_rows,
+            len(media),
+        )
 
         if media.empty:
-            logger.warning("Skipping %s because it has no valid media times.", media_path)
-            continue
+            raise ValueError(f"Frame-list CSV has no valid media times: {media_path}")
 
         origin = datetime(1904, 1, 1)
 
@@ -103,26 +164,27 @@ def add_media_to_merged(
             media["times"] - origin
         ).dt.total_seconds()
 
+        media = media[
+            media["timestamp"].between(sensor_times[0], sensor_times[-1])
+        ].copy()
+        if media.empty:
+            raise ValueError(
+                f"Frame-list CSV does not overlap the sensor time range: {media_path}"
+            )
+
         media["sensor_timestamp"] = _nearest_sensor_timestamp(
             media["timestamp"].to_numpy(dtype=np.float64),
             sensor_times,
         )
 
+        media["time_distance"] = (
+            media["timestamp"] - media["sensor_timestamp"]
+        ).abs()
+        nearest_rows = media.groupby("sensor_timestamp")["time_distance"].idxmin()
         media_agg = (
-            media
-            .sort_values("timestamp")
-            .groupby("sensor_timestamp", as_index=False)
-            .agg(
-                {
-                    c: "first"
-                    for c in media.columns
-                    if c not in [
-                        "times",
-                        "timestamp",
-                        "sensor_timestamp",
-                    ]
-                }
-            )
+            media.loc[nearest_rows, ["sensor_timestamp", "media", "frame"]]
+            .sort_values("sensor_timestamp")
+            .reset_index(drop=True)
         )
 
         merge_key = "sensor_timestamp"
@@ -153,14 +215,12 @@ def add_media_to_merged(
         ]
 
         if existing_with_data and not overwrite:
-            logger.info(
-                "Skipping %s because media columns already contain data: %s",
-                tag,
-                existing_with_data,
+            raise ValueError(
+                f"Media columns already contain data for stream {media_i}: "
+                f"{', '.join(existing_with_data)}. Use overwrite=True to replace them."
             )
-            continue
 
-        if existing_cols and overwrite:
+        if existing_cols:
             logger.info(
                 "Dropping existing media columns for %s: %s",
                 tag,
@@ -189,6 +249,12 @@ def add_media_to_merged(
     sled.to_csv(out_path, index=False)
 
     logger.info("Saved media-enriched file to: %s", out_path)
+    logger.info(
+        "Media enrichment complete | sensor_rows=%s streams=%s elapsed_seconds=%.2f",
+        len(sled),
+        len(resolved_sources),
+        time.monotonic() - started_at,
+    )
 
     return out_path
 
@@ -233,13 +299,19 @@ def main(argv=None) -> None:
         action="store_true",
         help="Disable Stingray log files and write logs only to the console.",
     )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+    )
 
     args = parser.parse_args(argv)
 
     work_dir = Path(args.work_dir).expanduser().resolve()
     setup_logging(
         log_dir=work_dir / "logs",
-        name="stingray_images_add_media",
+        name=__name__,
+        level=getattr(logging, args.log_level),
         file=not args.no_file_log,
     )
     log_command_options(logger, args)

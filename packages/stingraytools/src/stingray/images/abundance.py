@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -157,9 +158,16 @@ def process(config: Config) -> pd.DataFrame:
             scale_factor,
         )
 
+    inherited_media_columns = [
+        column for column in sensor_df.columns
+        if re.fullmatch(
+            r"(?:media|frame|media_path|id|link)(?:_[1-9][0-9]*)?",
+            column,
+        )
+    ]
     df_merged = (
-        sensor_df.merge(
-            df_bin.drop(columns=["media", "frame"], errors="ignore"),
+        sensor_df.drop(columns=inherited_media_columns).merge(
+            df_bin,
             on="times",
             how="left",
         )

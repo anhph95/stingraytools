@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 
 from stingray.config.columns import SLED_COLUMNS
-from stingray.images import resolve_frame_list_csv
 from stingray.io.csv import read_csv_parallel
 from stingray.io.indexing import load_or_build_file_index, filter_file_index
 from stingray.utils.temporal import convert_timestamp
@@ -33,7 +32,6 @@ def merge_sensors(
     time_bin_seconds: float = 5.0,
     out_dir: str | Path = "dash_data/data/stingray/",
     index_dir: str | Path = "indexes",
-    media_list_dirs: list[str | Path] | None = None,
     overwrite_index: bool = False,
     suna_cal_file: str | Path | None = None,
     suna_cal_dir: str | Path | None = None,
@@ -42,7 +40,7 @@ def merge_sensors(
     logger.info(
         "Merging sensors data | cruise=%s start=%s end=%s root=%s cal_year=%s "
         "time_bin_seconds=%s out_dir=%s index_dir=%s overwrite_index=%s "
-        "suna_cal_file=%s suna_cal_dir=%s media_dirs=%s",
+        "suna_cal_file=%s suna_cal_dir=%s",
         cruise,
         start,
         end,
@@ -54,10 +52,7 @@ def merge_sensors(
         overwrite_index,
         suna_cal_file,
         suna_cal_dir,
-        media_list_dirs,
     )
-    if media_list_dirs is None:
-        media_list_dirs = ["media_list/ISIIS1", "media_list/ISIIS2"]
 
     start_date = datetime.strptime(start, "%Y-%m-%d")
     end_date = datetime.strptime(end, "%Y-%m-%d")
@@ -338,58 +333,6 @@ def merge_sensors(
     ctd_agg["deployment"] = pd.Series(deployment).astype("Int64")
 
     # -------------------------
-    # MEDIA BLOCK
-    # -------------------------
-    media_aggs = []
-
-    for media_source in media_list_dirs:
-        media_path = resolve_frame_list_csv(media_source, cruise)
-        if media_path is None:
-            logger.warning(
-                "No frame-list CSV found for cruise %s in %s",
-                cruise,
-                media_source,
-            )
-            continue
-
-        tag = media_path.parent.name.lower()
-        logger.info("Processing media: %s", tag)
-
-        media = pd.read_csv(media_path)
-        if "times" not in media.columns:
-            raise ValueError(f"Frame-list CSV must contain a 'times' column: {media_path}")
-        media["times"] = pd.to_datetime(media["times"], errors="coerce")
-        media = media.dropna(subset=["times"]).sort_values("times")
-
-        origin = datetime(1904, 1, 1)
-        media["timestamp"] = (media["times"] - origin).dt.total_seconds()
-
-        media["time_bin"] = assign_time_bins(
-            np.asarray(media["timestamp"], dtype=np.float64),
-            time_bin_seconds,
-            grid_start,
-            grid_end,
-        )
-
-        media_agg = (
-            media.sort_values("timestamp")
-            .groupby("time_bin", as_index=False)
-            .agg(
-                {
-                    c: "first"
-                    for c in media.columns
-                    if c not in ["time_bin", "times", "timestamp"]
-                }
-            )
-        )
-
-        media_aggs.append(media_agg)
-        logger.info("%s bins: %s", tag, len(media_agg))
-
-    if not media_aggs:
-        logger.warning("No media files found...")
-        
-    # -------------------------
     # MERGE MASTER TABLE
     # -------------------------
     sled = (
@@ -401,18 +344,6 @@ def merge_sensors(
         .merge(oxygen_agg, on="time_bin", how="left")
         .merge(suna_agg, on="time_bin", how="left")
     )
-
-    for i, media_agg in enumerate(media_aggs, start=1):
-        if i == 1:
-            sled = sled.merge(media_agg, on="time_bin", how="left")
-        else:
-            suffix = f"_{i}"
-            cols = [c for c in media_agg.columns if c != "time_bin"]
-            sled = sled.merge(
-                media_agg.rename(columns={c: f"{c}{suffix}" for c in cols}),
-                on="time_bin",
-                how="left",
-            )
 
     # -------------------------
     # POST-MERGE PROCESSING

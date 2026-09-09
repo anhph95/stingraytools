@@ -10,7 +10,7 @@ from stingray.sensors.merge import merge_sensors
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Stingray CTD-binned sensor aggregation + media + casts"
+        description="Stingray CTD-binned sensor aggregation and cast identification"
     )
 
     parser.add_argument("--cruise", required=True)
@@ -37,16 +37,6 @@ def parse_args(argv=None) -> argparse.Namespace:
         "--index-dir",
         default=None,
         help="Sensor index directory. Default: WORK_DIR/indexes.",
-    )
-    parser.add_argument(
-        "--media-list-dirs",
-        nargs="*",
-        default=None,
-        help=(
-            "Frame-list CSV files or directories containing one matching cruise "
-            "frame-list CSV. "
-            "Default: WORK_DIR/media_list/ISIIS1 and WORK_DIR/media_list/ISIIS2."
-        ),
     )
     parser.add_argument(
         "--suna-cal-file",
@@ -80,14 +70,6 @@ def main(argv=None) -> None:
         else Path("dash_data") / "data" / "stingray"
     )
     index_dir = Path(args.index_dir).expanduser() if args.index_dir else Path("indexes")
-    media_list_dirs = [
-        Path(path).expanduser()
-        for path in (
-            args.media_list_dirs
-            if args.media_list_dirs is not None
-            else ["media_list/ISIIS1", "media_list/ISIIS2"]
-        )
-    ]
     suna_cal_file = Path(args.suna_cal_file).expanduser() if args.suna_cal_file else None
     suna_cal_dir = Path(args.suna_cal_dir).expanduser() if args.suna_cal_dir else None
 
@@ -95,10 +77,6 @@ def main(argv=None) -> None:
     root = root if root.is_absolute() else work_dir / root
     out_dir = out_dir if out_dir.is_absolute() else work_dir / out_dir
     index_dir = index_dir if index_dir.is_absolute() else work_dir / index_dir
-    media_list_dirs = [
-        path if path.is_absolute() else work_dir / path
-        for path in media_list_dirs
-    ]
     if suna_cal_file is not None and not suna_cal_file.is_absolute():
         suna_cal_file = work_dir / suna_cal_file
     if suna_cal_dir is not None and not suna_cal_dir.is_absolute():
@@ -120,7 +98,6 @@ def main(argv=None) -> None:
         time_bin_seconds=args.time_bin_seconds,
         out_dir=out_dir,
         index_dir=index_dir,
-        media_list_dirs=media_list_dirs,
         overwrite_index=args.overwrite_index,
         suna_cal_file=suna_cal_file,
         suna_cal_dir=suna_cal_dir,
