@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from stingray.images import resolve_frame_list_csv
 from stingray.logging.setup import log_command_options, setup_logging
 
 logger = logging.getLogger(__name__)
@@ -65,34 +65,24 @@ def add_media_to_merged(
     if len(sensor_times) < 2:
         raise ValueError("Merged sensor file must contain at least two timestamps.")
 
-    for media_i, media_dir in enumerate(media_list_dirs, start=1):
-        if not os.path.isdir(media_dir):
-            logger.warning("Media directory not found: %s", media_dir)
+    for media_i, media_source in enumerate(media_list_dirs, start=1):
+        media_path = resolve_frame_list_csv(media_source, cruise)
+        if media_path is None:
+            logger.warning(
+                "No frame-list CSV found for cruise %s in %s",
+                cruise,
+                media_source,
+            )
             continue
 
-        media_file = next(
-            (
-                f
-                for f in os.listdir(media_dir)
-                if cruise in f and f.endswith(".csv")
-            ),
-            None,
-        )
-
-        if media_file is None:
-            logger.warning("No media CSV found for cruise %s in %s", cruise, media_dir)
-            continue
-
-        tag = os.path.basename(media_dir).lower()
-        media_path = Path(media_dir) / media_file
+        tag = media_path.parent.name.lower()
 
         logger.info("Processing media: %s | %s", tag, media_path)
 
         media = pd.read_csv(media_path)
 
         if "times" not in media.columns:
-            logger.warning("Skipping %s because it has no 'times' column.", media_path)
-            continue
+            raise ValueError(f"Frame-list CSV must contain a 'times' column: {media_path}")
 
         media["times"] = pd.to_datetime(media["times"], errors="coerce")
 
@@ -221,6 +211,10 @@ def main(argv=None) -> None:
         "--media-list-dirs",
         nargs="+",
         default=None,
+        help=(
+            "Frame-list CSV files or directories containing one matching "
+            "cruise frame-list CSV."
+        ),
     )
 
     parser.add_argument(

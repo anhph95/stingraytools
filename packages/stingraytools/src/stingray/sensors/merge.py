@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -11,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from stingray.config.columns import SLED_COLUMNS
+from stingray.images import resolve_frame_list_csv
 from stingray.io.csv import read_csv_parallel
 from stingray.io.indexing import load_or_build_file_index, filter_file_index
 from stingray.utils.temporal import convert_timestamp
@@ -342,26 +342,22 @@ def merge_sensors(
     # -------------------------
     media_aggs = []
 
-    for media_dir in media_list_dirs:
-        if not os.path.isdir(media_dir):
+    for media_source in media_list_dirs:
+        media_path = resolve_frame_list_csv(media_source, cruise)
+        if media_path is None:
+            logger.warning(
+                "No frame-list CSV found for cruise %s in %s",
+                cruise,
+                media_source,
+            )
             continue
 
-        media_file = next(
-            (
-                f
-                for f in os.listdir(media_dir)
-                if cruise in f and f.endswith(".csv")
-            ),
-            None,
-        )
-
-        if not media_file:
-            continue
-
-        tag = os.path.basename(media_dir).lower()
+        tag = media_path.parent.name.lower()
         logger.info("Processing media: %s", tag)
 
-        media = pd.read_csv(os.path.join(media_dir, media_file))
+        media = pd.read_csv(media_path)
+        if "times" not in media.columns:
+            raise ValueError(f"Frame-list CSV must contain a 'times' column: {media_path}")
         media["times"] = pd.to_datetime(media["times"], errors="coerce")
         media = media.dropna(subset=["times"]).sort_values("times")
 

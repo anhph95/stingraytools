@@ -210,7 +210,9 @@ stingray sensors merge \
     Generated sensor-file index directory. Default: WORK_DIR/indexes.
 
 --media-list-dirs MEDIA_LIST_DIRS ...
-    Media-list directories for image links. Defaults to directories below
+    Frame-list CSV files or directories containing one matching cruise
+    frame-list CSV. When a directory contains both fast and details frame
+    lists, pass the exact CSV path. Defaults to directories below
     WORK_DIR/media_list.
 
 --suna-cal-file SUNA_CAL_FILE

@@ -29,7 +29,7 @@ raw image or video files
   -> media_list/CAMERA_STREAM/
 
 ML detection label files
-  -> image-analysis/merge_detection_labels.sh
+  -> stingray-image-analysis/merge_detection_labels.sh
   -> stingray images abundance
   -> dashboard_data/data/shadowgraph/
 
@@ -39,7 +39,8 @@ NES-LTER CTD API data
 ```
 
 ML inference and post-inference processing are orchestrated by the separate
-[image-analysis](https://github.com/anhph95/image-analysis) workflow repository.
+[stingray-image-analysis](https://github.com/anhph95/stingray-image-analysis)
+workflow repository.
 This repository provides the reusable timestamp and abundance commands used by
 that workflow.
 
@@ -104,13 +105,24 @@ stingray ctd download \
 Run post-inference image abundance processing:
 
 ```bash
-git clone https://github.com/anhph95/image-analysis.git
-cd image-analysis
-sbatch run_slurm.sbatch
+# Clone and enter the companion workflow repository.
+git clone https://github.com/anhph95/stingray-image-analysis.git
+cd stingray-image-analysis
+
+# Copy and edit one cruise configuration before submitting jobs.
+cp configs/cruise.example.conf.sh configs/my_cruise.conf.sh
+
+# Create the log directory before Slurm opens the job log files.
+mkdir -p slogs
+
+# Submit each required stage in workflow order after its predecessor finishes.
+sbatch frame_timestamps.sbatch configs/my_cruise.conf.sh
+sbatch yolo_predict.sbatch configs/my_cruise.conf.sh
+sbatch image_abundance.sbatch configs/my_cruise.conf.sh
 ```
 
 Workflow runner details are in the
-[image-analysis repository](https://github.com/anhph95/image-analysis).
+[stingray-image-analysis repository](https://github.com/anhph95/stingray-image-analysis).
 
 ## Development
 
@@ -126,7 +138,7 @@ Run package checks:
 
 ```bash
 python -m pytest packages/stingraytools/tests
-python -m pytest packages/stingray-dashboard/tests
+python packages/stingray-dashboard/tests/test_dashboard.py
 ```
 
 ## License

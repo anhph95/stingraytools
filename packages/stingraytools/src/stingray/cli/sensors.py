@@ -43,7 +43,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         nargs="*",
         default=None,
         help=(
-            "Media-list directories. "
+            "Frame-list CSV files or directories containing one matching cruise "
+            "frame-list CSV. "
             "Default: WORK_DIR/media_list/ISIIS1 and WORK_DIR/media_list/ISIIS2."
         ),
     )
