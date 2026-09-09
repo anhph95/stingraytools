@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 def cli(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
+        prog="stingray ctd download",
         description=(
             "Download NES-LTER CTD cruise data, merge missing lat/lon/date "
             "from metadata when needed, and save one CSV per cruise."
@@ -195,4 +196,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

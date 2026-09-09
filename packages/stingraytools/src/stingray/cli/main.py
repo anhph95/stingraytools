@@ -22,12 +22,6 @@ COMMANDS = {
         "help": "Generate YOLO training data",
         "target": "stingray.images.generate_yolo_training:main",
     },
-    # Legacy Tator tool retained in stingray.images.add_tator_links.
-    # Re-enable this command if Tator link generation returns to the workflow.
-    # ("images", "tator-links"): {
-    #     "help": "Add Tator annotation links",
-    #     "target": "stingray.images.add_tator_links:main",
-    # },
     ("images", "add-media"): {
         "help": "Add media metadata to merged sensor CSV",
         "target": "stingray.images.add_media:main",
@@ -35,6 +29,21 @@ COMMANDS = {
     ("ctd", "download"): {
         "help": "Download NES-LTER CTD cruise data",
         "target": "stingray.ctd.download:main",
+    },
+}
+
+GROUPS = {
+    "sensors": {
+        "aliases": ["sensor"],
+        "help": "Process and merge Stingray sensor observations",
+    },
+    "images": {
+        "aliases": ["image"],
+        "help": "Build frame metadata, attach media, and compute abundance",
+    },
+    "ctd": {
+        "aliases": [],
+        "help": "Download and compile CTD reference data",
     },
 }
 
@@ -59,10 +68,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="stingray",
         description="Stingray command-line tools",
+        epilog="Run 'stingray <group> --help' to list that group's commands.",
     )
 
     groups = parser.add_subparsers(
         dest="group",
+        title="command groups",
         metavar="<group>",
         required=True,
     )
@@ -71,12 +82,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     for (group, command), spec in COMMANDS.items():
         if group not in group_parsers:
+            group_spec = GROUPS[group]
             group_parser = groups.add_parser(
                 group,
-                help=f"{group} commands",
+                aliases=group_spec["aliases"],
+                help=group_spec["help"],
+                description=group_spec["help"],
+                epilog=f"Run 'stingray {group} <command> --help' for all command options.",
             )
             group_parsers[group] = group_parser.add_subparsers(
                 dest="command",
+                title="commands",
                 metavar="<command>",
                 required=True,
             )

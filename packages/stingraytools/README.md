@@ -41,7 +41,13 @@ Confirm that the command-line interface is available:
 
 ```bash
 stingray --help
+stingray sensors --help
+stingray images --help
 ```
+
+Use a leaf command's help for its complete arguments, defaults, and
+descriptions, for example `stingray images add-media --help`. The singular
+aliases `stingray sensor` and `stingray image` are also accepted.
 
 ## Processing workspace
 
@@ -87,7 +93,7 @@ pip install "stingraytools[sensors] @ git+https://github.com/anhph95/stingraytoo
 cd /mnt/stingray_share
 
 # Confirm the workspace contains the expected runtime inputs before processing.
-# sensor_data/ contains raw instrument folders; media_list/ is optional.
+# sensor_data/ contains the raw instrument folders.
 ls sensor_data
 
 # Process one cruise into dash_data/data/stingray/.
@@ -98,6 +104,17 @@ stingray sensors merge \
   --end END_DATE \
   --cal-year CALIBRATION_YEAR \
   --time-bin-seconds BIN_WIDTH_SECONDS
+
+# After camera timestamps finish, enrich a separate dashboard product with
+# one or more ordered camera streams.
+stingray images add-media \
+  dash_data/data/stingray/DATE_CRUISE.csv \
+  --work-dir . \
+  --cruise CRUISE_ID \
+  --media-list-dirs \
+    media_list/CAMERA_STREAM_1/DATE_CRUISE_frame_list_fast.csv \
+    media_list/CAMERA_STREAM_2/DATE_CRUISE_frame_list_fast.csv \
+  --out-path /path/to/media_enriched/DATE_CRUISE.csv
 
 # Compile CTD reference files into dash_data/data/ctd/ when needed.
 stingray ctd download \
@@ -118,9 +135,11 @@ STINGRAY_DEFAULT_DATASET=DATASET_NAME \
   docker compose -f compose.ghcr.yml up -d --pull always
 ```
 
-The dashboard container does not write into `dash_data/`. Re-run
-`stingray sensors merge` when new cruise data arrive, then refresh the dashboard
-file list or restart the container if the deployment policy prefers restarts.
+The dashboard container does not write into `dash_data/`. Re-run `stingray
+sensors merge` when new sensor data arrive. Run `stingray images add-media`
+again when updated camera frame lists become available, then refresh the
+dashboard file list or restart the container if the deployment policy prefers
+restarts.
 Local dashboard image builds use the source checkout. Shipboard and server
 deployments use the released GHCR image.
 
@@ -148,6 +167,14 @@ stingray sensors merge \
   --start START_DATE \
   --end END_DATE \
   --time-bin-seconds BIN_WIDTH_SECONDS
+
+# Optionally attach camera streams later without delaying sensor processing.
+stingray images add-media \
+  dash_data/data/stingray/DATE_CRUISE.csv \
+  --work-dir . \
+  --cruise CRUISE_ID \
+  --media-list-dirs media_list/CAMERA_STREAM/DATE_CRUISE_frame_list_fast.csv \
+  --out-path /path/to/media_enriched/DATE_CRUISE.csv
 
 # Install the separate dashboard package when local dashboard review is needed.
 pip install -e "./packages/stingray-dashboard"
@@ -209,12 +236,6 @@ stingray sensors merge \
 --index-dir INDEX_DIR
     Generated sensor-file index directory. Default: WORK_DIR/indexes.
 
---media-list-dirs MEDIA_LIST_DIRS ...
-    Frame-list CSV files or directories containing one matching cruise
-    frame-list CSV. When a directory contains both fast and details frame
-    lists, pass the exact CSV path. Defaults to directories below
-    WORK_DIR/media_list.
-
 --suna-cal-file SUNA_CAL_FILE
     Optional SUNA calibration file for TSP-corrected nitrate.
 
@@ -227,6 +248,40 @@ stingray sensors merge \
 --log-level {DEBUG,INFO,WARNING,ERROR}
     Logging level. Default: INFO.
 ```
+
+## Add camera streams after sensor processing
+
+Sensor aggregation does not wait for image or video processing. After one or
+more camera-stream frame lists are ready, create a media-enriched dashboard CSV:
+
+```bash
+stingray images add-media \
+  dash_data/data/stingray/DATE_CRUISE.csv \
+  --work-dir . \
+  --cruise CRUISE_ID \
+  --media-list-dirs \
+    media_list/CAMERA_STREAM_1/DATE_CRUISE_frame_list_fast.csv \
+    media_list/CAMERA_STREAM_2/DATE_CRUISE_frame_list_fast.csv \
+  --out-path /path/to/media_enriched/DATE_CRUISE.csv \
+  --log-level INFO
+```
+
+The ordered frame-list inputs become `media`/`frame`, `media_2`/`frame_2`,
+`media_3`/`frame_3`, and so forth. Existing `media_1`/`frame_1` columns are
+recognized as aliases for the first stream, while newly written first-stream
+columns use the unsuffixed form. Use `--overwrite` to replace populated media
+columns deliberately.
+
+Frame-list CSVs retain their complete metadata for other workflows. Media
+enrichment reads only `times`, `media`, and `frame`, because those fields are
+sufficient to build dashboard frame links. Legacy `id`, `link`, and
+`media_path` columns are removed from the enriched output.
+
+The command uses the same logging system as sensor processing. By default it
+records resolved inputs, row and match counts, overwrite decisions, output
+location, and elapsed time in `WORK_DIR/logs`. Use `--no-file-log` for console
+logging only. Run `stingray images add-media --help` for the complete current
+option list.
 
 ## Batch-process cruises
 

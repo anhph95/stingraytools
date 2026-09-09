@@ -10,6 +10,7 @@ from stingray.sensors.merge import merge_sensors
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
+        prog="stingray sensors merge",
         description="Stingray CTD-binned sensor aggregation and cast identification"
     )
 

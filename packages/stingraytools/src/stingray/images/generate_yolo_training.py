@@ -32,6 +32,7 @@ def warn(message):
 # ===============================
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
+        prog="stingray images generate-training",
         description="Prepare YOLO training data from Tator annotations.",
         epilog=(
             "Template image dimensions: --img-dim 2330 1750. "

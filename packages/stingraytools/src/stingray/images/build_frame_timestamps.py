@@ -476,6 +476,7 @@ def extract_details_dataframe(media_dir, max_workers, suffixes=None, file_limit=
     return df
 def main(argv=None):
     parser = argparse.ArgumentParser(
+        prog="stingray images frame-timestamp",
         description="Build media CSV using fast modal-size logic or full per-frame timestamp extraction.",
     )
     parser.add_argument("--cruise", required=True, help="Cruise to process")

@@ -185,6 +185,7 @@ def process(config: Config) -> pd.DataFrame:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
+        prog="stingray images abundance",
         description="Convert image detections to time-binned abundance."
     )
 

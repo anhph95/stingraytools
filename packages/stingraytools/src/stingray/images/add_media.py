@@ -261,25 +261,34 @@ def add_media_to_merged(
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(
+        prog="stingray images add-media",
         description="Attach media-list fields to an already merged Stingray sensor CSV."
     )
 
-    parser.add_argument("merged_csv")
+    parser.add_argument(
+        "merged_csv",
+        help="Sensor-only CSV to enrich with camera frame links.",
+    )
     parser.add_argument(
         "--work-dir",
         default=".",
         help="Workspace whose logs directory receives command logs.",
     )
 
-    parser.add_argument("--cruise", required=True)
+    parser.add_argument(
+        "--cruise",
+        required=True,
+        help="Cruise identifier used to resolve frame-list files from directories.",
+    )
 
     parser.add_argument(
         "--media-list-dirs",
         nargs="+",
-        default=None,
+        required=True,
         help=(
-            "Frame-list CSV files or directories containing one matching "
-            "cruise frame-list CSV."
+            "Ordered frame-list CSV files or directories containing one matching "
+            "cruise frame-list CSV. The first stream is unsuffixed; later streams "
+            "use _2, _3, and so forth."
         ),
     )
 
@@ -303,6 +312,7 @@ def main(argv=None) -> None:
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging level. Default: INFO.",
     )
 
     args = parser.parse_args(argv)

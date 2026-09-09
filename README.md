@@ -28,6 +28,10 @@ raw image or video files
   -> stingray images frame-timestamp
   -> media_list/CAMERA_STREAM/
 
+sensor CSV + one or more camera-stream frame lists
+  -> stingray images add-media
+  -> media-enriched dashboard CSV
+
 ML detection label files
   -> stingray-image-analysis/merge_detection_labels.sh
   -> stingray images abundance
@@ -93,6 +97,36 @@ stingray images frame-timestamp \
   --media-dir /path/to/CAMERA_MEDIA_DIR \
   --out-dir /path/to/stingray/data/media_list/CAMERA_STREAM
 ```
+
+Attach one or more camera streams after the sensor CSV is available:
+
+```bash
+stingray images add-media \
+  /path/to/stingray/data/dash_data/data/stingray/DATE_CRUISE.csv \
+  --work-dir /path/to/stingray/data \
+  --cruise CRUISE_ID \
+  --media-list-dirs \
+    /path/to/stingray/data/media_list/CAMERA_STREAM_1/DATE_CRUISE_frame_list_fast.csv \
+    /path/to/stingray/data/media_list/CAMERA_STREAM_2/DATE_CRUISE_frame_list_fast.csv \
+  --out-path /path/to/media_enriched/DATE_CRUISE.csv
+```
+
+Sensor processing and camera timestamp generation are intentionally independent.
+The sensor product can therefore update near real time, while `add-media` creates
+an enriched product after slower camera processing finishes.
+
+## Command Help
+
+List command groups and drill down to the complete options for one command:
+
+```bash
+stingray --help
+stingray sensors --help
+stingray images --help
+stingray images add-media --help
+```
+
+The singular aliases `stingray sensor` and `stingray image` are also accepted.
 
 Download CTD reference files:
 
