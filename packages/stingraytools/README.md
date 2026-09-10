@@ -70,15 +70,14 @@ stingray_workspace/
   dash_data/data/       dashboard-ready output
 ```
 
-Dashboard station and bathymetry reference tables are installed with the
-package. To override them for one workspace, place replacements in
-`dash_data/misc/`.
+The processing commands write dashboard-ready products, but do not include or
+serve a visualization application. The separate
+[stingray-dashboard](https://github.com/anhph95/stingray-dashboard) repository
+consumes these products.
 
-## Example: shipboard processing and dashboard deployment
+## Example: shipboard processing
 
-This workflow keeps processing and visualization connected through one shared
-workspace. The Python environment produces dashboard-ready CSV files, and the
-Docker dashboard reads those files through a read-only mount.
+This workflow produces dashboard-ready CSV files in a shared workspace.
 
 ```bash
 # Create a dedicated virtual environment on the shipboard or server Linux host.
@@ -105,8 +104,8 @@ stingray sensors merge \
   --cal-year CALIBRATION_YEAR \
   --time-bin-seconds BIN_WIDTH_SECONDS
 
-# After camera timestamps finish, enrich a separate dashboard product with
-# one or more ordered camera streams.
+# After camera timestamps finish, enrich the sensor product with one or more
+# ordered camera streams.
 stingray images add-media \
   dash_data/data/stingray/DATE_CRUISE.csv \
   --work-dir . \
@@ -121,29 +120,9 @@ stingray ctd download \
   --work-dir . \
   --skip-existing
 
-# Download the release Compose file if it is not already present on the server.
-curl -O https://raw.githubusercontent.com/anhph95/stingraytools/main/compose.ghcr.yml
-
-# Pull the published dashboard release; no local image build is required.
-DASH_DATA_DIR=/mnt/stingray_share/dash_data \
-  docker compose -f compose.ghcr.yml pull
-
-# Serve the generated dashboard files with the released container image.
-# STINGRAY_DEFAULT_DATASET pins the initial dataset selector to the processing output.
-DASH_DATA_DIR=/mnt/stingray_share/dash_data \
-STINGRAY_DEFAULT_DATASET=DATASET_NAME \
-  docker compose -f compose.ghcr.yml up -d --pull always
 ```
 
-The dashboard container does not write into `dash_data/`. Re-run `stingray
-sensors merge` when new sensor data arrive. Run `stingray images add-media`
-again when updated camera frame lists become available, then refresh the
-dashboard file list or restart the container if the deployment policy prefers
-restarts.
-Local dashboard image builds use the source checkout. Shipboard and server
-deployments use the released GHCR image.
-
-## Example: WSL2 development and local dashboard checks
+## Example: WSL2 development
 
 This workflow is useful when editing code or batch-editing CSV outputs from a
 Windows-mounted drive. It keeps the source checkout editable while using the
@@ -176,19 +155,7 @@ stingray images add-media \
   --media-list-dirs media_list/CAMERA_STREAM/DATE_CRUISE_frame_list_fast.csv \
   --out-path /path/to/media_enriched/DATE_CRUISE.csv
 
-# Install the separate dashboard package when local dashboard review is needed.
-pip install -e "./packages/stingray-dashboard"
-
-# Run the dashboard directly from the Python environment for local inspection.
-stingray-dashboard \
-  --work-dir dash_data \
-  --default-dataset DATASET_NAME \
-  --host 127.0.0.1 \
-  --port 8050
 ```
-
-Open `http://127.0.0.1:8050` to inspect the processed data before publishing or
-copying the workspace to a server.
 
 ## Process one cruise
 
@@ -351,5 +318,5 @@ stack, so install `stingraytools[images]` for those jobs.
 ## Output and related tools
 
 The default merged output is written below
-`WORK_DIR/dash_data/data/stingray/`. It can be explored with the separately
-documented [stingray-dashboard](../stingray-dashboard/README.md).
+`WORK_DIR/dash_data/data/stingray/`. These products can be visualized with the
+separately maintained [stingray-dashboard](https://github.com/anhph95/stingray-dashboard).

@@ -14,7 +14,5 @@ dependencies:
   #   pip install ".[pipeline]"
   # For local Stingray CLI development:
   #   pip install -e ".[dev]"
-  # Dashboard app:
-  #   pip install -e "./packages/stingray-dashboard"
   # Legacy Tator command dependency:
   #   pip install ".[legacy-tator]"

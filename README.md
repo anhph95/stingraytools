@@ -12,8 +12,6 @@ dashboard-ready CSV products.
 - [stingraytools](packages/stingraytools/README.md): sensor processing, image
   metadata, image abundance, CTD compilation, shared time/grid utilities, and
   command-line workflows.
-- [stingray-dashboard](packages/stingray-dashboard/README.md): Dash application
-  and Docker deployment for dashboard-ready datasets.
 
 ## Data Workflow
 
@@ -65,14 +63,8 @@ Install the full processing pipeline dependency set:
 pip install "stingraytools[pipeline] @ git+https://github.com/anhph95/stingraytools.git"
 ```
 
-Install the dashboard package:
-
-```bash
-pip install "stingray-dashboard @ git+https://github.com/anhph95/stingraytools.git#subdirectory=packages/stingray-dashboard"
-```
-
-For dashboard Docker and server deployment, see
-[packages/stingray-dashboard/README.md](packages/stingray-dashboard/README.md).
+The dashboard application is maintained in the separate
+[stingray-dashboard](https://github.com/anhph95/stingray-dashboard) repository.
 
 ## Core Commands
 
@@ -172,7 +164,6 @@ Run package checks:
 
 ```bash
 python -m pytest packages/stingraytools/tests
-python packages/stingray-dashboard/tests/test_dashboard.py
 ```
 
 ## License
