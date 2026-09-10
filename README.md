@@ -43,7 +43,7 @@ NES-LTER CTD API data
 ```
 
 ML inference and post-inference processing are orchestrated by the separate
-[stingray-image-analysis](https://github.com/anhph95/stingray-image-analysis)
+[stingray-image-analysis](https://github.com/WHOIGit/stingray-image-analysis)
 workflow repository.
 This repository provides the reusable timestamp and abundance commands used by
 that workflow.
@@ -140,7 +140,7 @@ Run post-inference image abundance processing:
 
 ```bash
 # Clone and enter the companion workflow repository.
-git clone https://github.com/anhph95/stingray-image-analysis.git
+git clone https://github.com/WHOIGit/stingray-image-analysis.git
 cd stingray-image-analysis
 
 # Copy and edit one cruise configuration before submitting jobs.
@@ -156,7 +156,7 @@ sbatch image_abundance.sbatch configs/my_cruise.conf.sh
 ```
 
 Workflow runner details are in the
-[stingray-image-analysis repository](https://github.com/anhph95/stingray-image-analysis).
+[stingray-image-analysis repository](https://github.com/WHOIGit/stingray-image-analysis).
 
 ## Development
 
